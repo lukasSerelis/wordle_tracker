@@ -3,7 +3,10 @@ services:
     name: wordle-tracker
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app
+    startCommand: |
+      mkdir -p /data
+      chmod 777 /data
+      gunicorn app:app
     disk:
       name: wordle-data
       mountPath: /data
