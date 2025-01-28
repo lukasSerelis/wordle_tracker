@@ -12,17 +12,27 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 CORS(app)
 
-# Initialize data storage
-STORAGE_FILE = 'wordle_data.json'
+# Use the mounted disk path from render.yaml
+DATA_DIR = '/data'
+STORAGE_FILE = os.path.join(DATA_DIR, 'wordle_data.json')
+
+def ensure_data_dir():
+    """Ensure the data directory exists"""
+    if not os.path.exists(DATA_DIR):
+        os.makedirs(DATA_DIR)
+        logger.info(f"Created data directory at {DATA_DIR}")
 
 def load_data():
     """Load data from storage file, creating it if it doesn't exist"""
     try:
+        ensure_data_dir()
         if os.path.exists(STORAGE_FILE):
             with open(STORAGE_FILE, 'r') as f:
+                logger.info(f"Loading data from {STORAGE_FILE}")
                 return json.load(f)
         else:
             # Initialize with empty structure
+            logger.info(f"No existing data file at {STORAGE_FILE}, creating new")
             return {}
     except Exception as e:
         logger.error(f"Error loading data: {e}")
@@ -31,8 +41,11 @@ def load_data():
 def save_data(data):
     """Save data to storage file"""
     try:
+        ensure_data_dir()
+        logger.info(f"Attempting to save data to {STORAGE_FILE}")
         with open(STORAGE_FILE, 'w') as f:
             json.dump(data, f, indent=2)
+        logger.info("Data saved successfully")
         return True
     except Exception as e:
         logger.error(f"Error saving data: {e}")
@@ -49,6 +62,7 @@ def submit_result():
 
         # Load existing data
         data = load_data()
+        logger.info(f"Loaded existing data: {data}")
         
         # Get today's date
         today = datetime.now().strftime('%Y-%m-%d')
@@ -60,6 +74,7 @@ def submit_result():
         # Store the new result
         data[today][result['player']] = {
             'guesses': result['guesses'],
+            'states': result.get('states', []),  # Add support for letter states
             'success': result['success'],
             'attempts': len(result['guesses'])
         }
@@ -68,7 +83,6 @@ def submit_result():
         
         # Save the updated data
         if save_data(data):
-            logger.info("Data saved successfully")
             return jsonify({"message": "Result saved successfully", "data": data[today]}), 201
         else:
             return jsonify({"error": "Failed to save data"}), 500
@@ -77,15 +91,7 @@ def submit_result():
         logger.error(f"Error in submit_result: {str(e)}", exc_info=True)
         return jsonify({"error": str(e)}), 500
 
-@app.route('/results', methods=['GET'])
-def get_results():
-    try:
-        data = load_data()
-        logger.info(f"Returning results: {data}")
-        return jsonify(data)
-    except Exception as e:
-        logger.error(f"Error in get_results: {str(e)}", exc_info=True)
-        return jsonify({"error": str(e)}), 500
+# ... rest of your routes remain the same ...
 
 @app.route('/debug', methods=['GET'])
 def debug():
@@ -95,24 +101,11 @@ def debug():
         return jsonify({
             "status": "running",
             "current_directory": os.getcwd(),
-            "files_in_directory": os.listdir(),
+            "data_directory": DATA_DIR,
+            "storage_file_path": STORAGE_FILE,
+            "files_in_data_dir": os.listdir(DATA_DIR) if os.path.exists(DATA_DIR) else [],
             "current_data": data
         })
     except Exception as e:
         logger.error(f"Error in debug: {str(e)}", exc_info=True)
         return jsonify({"error": str(e)}), 500
-
-@app.route('/clear', methods=['POST'])
-def clear_data():
-    """Debug endpoint to clear all data"""
-    try:
-        if save_data({}):
-            return jsonify({"message": "Data cleared successfully"}), 200
-        return jsonify({"error": "Failed to clear data"}), 500
-    except Exception as e:
-        logger.error(f"Error in clear_data: {str(e)}", exc_info=True)
-        return jsonify({"error": str(e)}), 500
-
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 10000))
-    app.run(host='0.0.0.0', port=port)
