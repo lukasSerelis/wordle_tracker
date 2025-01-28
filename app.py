@@ -17,24 +17,40 @@ def get_results():
             data = json.load(f)
         return jsonify(data)
     except FileNotFoundError:
-        return jsonify({"error": "No data found"}), 404
+        # Create file if it doesn't exist
+        with open('wordle_data.json', 'w') as f:
+            json.dump([], f)
+        return jsonify([])
     except Exception as e:
+        print(f"Error reading data: {str(e)}")  # Added logging
         return jsonify({"error": str(e)}), 500
 
 @app.route('/submit', methods=['POST'])
 def submit_result():
     try:
         result = request.json
-        with open('wordle_data.json', 'r') as f:
-            data = json.load(f)
+        print(f"Received data: {result}")  # Added logging
         
+        # Initialize data list
+        try:
+            with open('wordle_data.json', 'r') as f:
+                data = json.load(f)
+        except FileNotFoundError:
+            data = []
+        except json.JSONDecodeError:
+            data = []
+            
         data.append(result)
         
+        # Write updated data
         with open('wordle_data.json', 'w') as f:
             json.dump(data, f, indent=4)
-            
-        return jsonify({"message": "Result saved successfully"}), 201
+        
+        print(f"Data saved successfully. Total entries: {len(data)}")  # Added logging
+        return jsonify({"message": "Result saved successfully", "data": result}), 201
+    
     except Exception as e:
+        print(f"Error saving data: {str(e)}")  # Added logging
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
