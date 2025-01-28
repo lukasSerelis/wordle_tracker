@@ -1,0 +1,25 @@
+{
+  "2025-01-27": {
+    "Anonymous": {
+      "guesses": [
+        "brick",
+        "shunt"
+      ],
+      "success": true,
+      "attempts": 2
+    }
+  },
+  "2025-01-28": {
+    "Anonymous": {
+      "guesses": [
+        "flair",
+        "mound",
+        "bests",
+        "fewer",
+        "fever"
+      ],
+      "success": true,
+      "attempts": 5
+    }
+  }
+}
