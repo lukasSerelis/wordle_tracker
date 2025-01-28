@@ -6,9 +6,46 @@ from flask_cors import CORS
 app = Flask(__name__)
 CORS(app)
 
-@app.route('/')
-def home():
-    return jsonify({"message": "Wordle Tracker API is running"})
+@app.route('/submit', methods=['POST'])
+def submit_result():
+    try:
+        # Log the raw request data
+        print("Raw request data:", request.get_data())
+        
+        result = request.json
+        print("Parsed JSON data:", result)
+        
+        # Get current working directory and file path
+        current_dir = os.getcwd()
+        file_path = os.path.join(current_dir, 'wordle_data.json')
+        print(f"Attempting to write to: {file_path}")
+        
+        # Read existing data
+        try:
+            with open(file_path, 'r') as f:
+                data = json.load(f)
+                print("Existing data:", data)
+        except FileNotFoundError:
+            print("File not found, creating new data array")
+            data = []
+        except json.JSONDecodeError:
+            print("JSON decode error, creating new data array")
+            data = []
+            
+        # Append new data
+        data.append(result)
+        print("Data after append:", data)
+        
+        # Write updated data
+        with open(file_path, 'w') as f:
+            json.dump(data, f, indent=4)
+        print("Data successfully written to file")
+        
+        return jsonify({"message": "Result saved successfully", "data": result}), 201
+    
+    except Exception as e:
+        print(f"Error in submit_result: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/results', methods=['GET'])
 def get_results():
@@ -17,40 +54,9 @@ def get_results():
             data = json.load(f)
         return jsonify(data)
     except FileNotFoundError:
-        # Create file if it doesn't exist
-        with open('wordle_data.json', 'w') as f:
-            json.dump([], f)
         return jsonify([])
     except Exception as e:
-        print(f"Error reading data: {str(e)}")  # Added logging
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/submit', methods=['POST'])
-def submit_result():
-    try:
-        result = request.json
-        print(f"Received data: {result}")  # Added logging
-        
-        # Initialize data list
-        try:
-            with open('wordle_data.json', 'r') as f:
-                data = json.load(f)
-        except FileNotFoundError:
-            data = []
-        except json.JSONDecodeError:
-            data = []
-            
-        data.append(result)
-        
-        # Write updated data
-        with open('wordle_data.json', 'w') as f:
-            json.dump(data, f, indent=4)
-        
-        print(f"Data saved successfully. Total entries: {len(data)}")  # Added logging
-        return jsonify({"message": "Result saved successfully", "data": result}), 201
-    
-    except Exception as e:
-        print(f"Error saving data: {str(e)}")  # Added logging
+        print(f"Error in get_results: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
