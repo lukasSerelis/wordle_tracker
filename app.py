@@ -13,9 +13,16 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 CORS(app)
 
-# Use the mounted disk path from render.yaml
+# Initialize global variables
 DATA_DIR = '/data'
 STORAGE_FILE = os.path.join(DATA_DIR, 'wordle_data.json')
+
+def update_storage_paths(new_dir):
+    """Update storage paths globally"""
+    global DATA_DIR, STORAGE_FILE
+    DATA_DIR = new_dir
+    STORAGE_FILE = os.path.join(DATA_DIR, 'wordle_data.json')
+    logger.info(f"Updated storage paths - DIR: {DATA_DIR}, FILE: {STORAGE_FILE}")
 
 def ensure_data_dir():
     """Ensure the data directory exists with proper permissions"""
@@ -35,9 +42,7 @@ def ensure_data_dir():
     except Exception as e:
         logger.error(f"Error setting up data directory: {e}")
         # Try fallback to current directory
-        global DATA_DIR, STORAGE_FILE
-        DATA_DIR = os.getcwd()
-        STORAGE_FILE = os.path.join(DATA_DIR, 'wordle_data.json')
+        update_storage_paths(os.getcwd())
         logger.info(f"Using fallback directory: {DATA_DIR}")
 
 def load_data():
@@ -71,7 +76,55 @@ def save_data(data):
         logger.error(f"Error saving data: {e}")
         return False
 
-# ... rest of your routes remain the same ...
+@app.route('/submit', methods=['POST'])
+def submit_result():
+    try:
+        logger.info(f"Received submission request: {request.get_data()}")
+        result = request.json
+        
+        if not result:
+            return jsonify({"error": "No data received"}), 400
+
+        # Load existing data
+        data = load_data()
+        logger.info(f"Loaded existing data: {data}")
+        
+        # Get today's date
+        today = datetime.now().strftime('%Y-%m-%d')
+        
+        # Initialize the date entry if it doesn't exist
+        if today not in data:
+            data[today] = {}
+            
+        # Store the new result
+        data[today][result['player']] = {
+            'guesses': result['guesses'],
+            'states': result.get('states', []),
+            'success': result['success'],
+            'attempts': len(result['guesses'])
+        }
+        
+        logger.info(f"Storing data for {today}: {data[today]}")
+        
+        # Save the updated data
+        if save_data(data):
+            return jsonify({"message": "Result saved successfully", "data": data[today]}), 201
+        else:
+            return jsonify({"error": "Failed to save data"}), 500
+            
+    except Exception as e:
+        logger.error(f"Error in submit_result: {str(e)}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/results', methods=['GET'])
+def get_results():
+    try:
+        data = load_data()
+        logger.info(f"Returning results: {data}")
+        return jsonify(data)
+    except Exception as e:
+        logger.error(f"Error in get_results: {str(e)}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/debug', methods=['GET'])
 def debug():
@@ -103,3 +156,18 @@ def debug():
     except Exception as e:
         logger.error(f"Error in debug: {str(e)}", exc_info=True)
         return jsonify({"error": str(e)}), 500
+
+@app.route('/clear', methods=['POST'])
+def clear_data():
+    """Debug endpoint to clear all data"""
+    try:
+        if save_data({}):
+            return jsonify({"message": "Data cleared successfully"}), 200
+        return jsonify({"error": "Failed to clear data"}), 500
+    except Exception as e:
+        logger.error(f"Error in clear_data: {str(e)}", exc_info=True)
+        return jsonify({"error": str(e)}), 500
+
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 10000))
+    app.run(host='0.0.0.0', port=port)
